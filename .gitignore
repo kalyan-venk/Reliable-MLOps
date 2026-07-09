@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# PredictOps: regenerated ML artifacts (source of truth is code + MLflow registry, not git)
+mlruns/
+mlartifacts/
+models/
