@@ -1,0 +1,15 @@
+.git
+.github
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+tests
+notebooks
+mlruns
+mlartifacts
+*.md
+.pytest_cache
+.ruff_cache
+.coverage
