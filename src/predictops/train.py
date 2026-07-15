@@ -91,7 +91,8 @@ def evaluate_on_test(pipeline: Pipeline, X_test, y_test) -> dict[str, float]:
     }
 
 
-def main() -> None:
+def main() -> str:
+    """Train every candidate under one parent run, persist the winner, return its child run_id."""
     df = load_dataset()
     X = df.drop(columns=[TARGET_COL])
     y = df[TARGET_COL]
@@ -101,30 +102,33 @@ def main() -> None:
 
     mlflow.set_experiment(EXPERIMENT_NAME)
 
-    best_name, best_pipeline, best_cv_auc = None, None, -1.0
-    for name, pipeline in build_candidates().items():
-        cv_auc_mean, cv_auc_std = cross_validate(pipeline, X_train, y_train)
-        pipeline.fit(X_train, y_train)
-        test_metrics = evaluate_on_test(pipeline, X_test, y_test)
+    best_name, best_pipeline, best_cv_auc, best_run_id = None, None, -1.0, None
+    with mlflow.start_run(run_name="training_session"):
+        for name, pipeline in build_candidates().items():
+            cv_auc_mean, cv_auc_std = cross_validate(pipeline, X_train, y_train)
+            pipeline.fit(X_train, y_train)
+            test_metrics = evaluate_on_test(pipeline, X_test, y_test)
 
-        with mlflow.start_run(run_name=name):
-            mlflow.log_param("model_type", name)
-            mlflow.log_metric("cv_roc_auc_mean", cv_auc_mean)
-            mlflow.log_metric("cv_roc_auc_std", cv_auc_std)
-            for metric_name, value in test_metrics.items():
-                mlflow.log_metric(f"test_{metric_name}", value)
-            mlflow.sklearn.log_model(
-                pipeline, artifact_path="model", input_example=X_train.iloc[:5]
-            )
+            with mlflow.start_run(run_name=name, nested=True) as child_run:
+                mlflow.log_param("model_type", name)
+                mlflow.log_metric("cv_roc_auc_mean", cv_auc_mean)
+                mlflow.log_metric("cv_roc_auc_std", cv_auc_std)
+                for metric_name, value in test_metrics.items():
+                    mlflow.log_metric(f"test_{metric_name}", value)
+                mlflow.sklearn.log_model(
+                    pipeline, artifact_path="model", input_example=X_train.iloc[:5]
+                )
 
-        print(f"[{name}] cv_roc_auc={cv_auc_mean:.4f}+/-{cv_auc_std:.4f} test={test_metrics}")
+            print(f"[{name}] cv_roc_auc={cv_auc_mean:.4f}+/-{cv_auc_std:.4f} test={test_metrics}")
 
-        if cv_auc_mean > best_cv_auc:
-            best_name, best_pipeline, best_cv_auc = name, pipeline, cv_auc_mean
+            if cv_auc_mean > best_cv_auc:
+                best_name, best_pipeline, best_cv_auc = name, pipeline, cv_auc_mean
+                best_run_id = child_run.info.run_id
 
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(best_pipeline, MODEL_PATH)
     print(f"\nWinner: {best_name} (cv_roc_auc={best_cv_auc:.4f}) -> saved to {MODEL_PATH}")
+    return best_run_id
 
 
 if __name__ == "__main__":
