@@ -1,0 +1,20 @@
+# Build/train deps for the churn service image (single-stage baseline, and the
+# multi-stage builder). This is the training + serving stack the container
+# actually runs: fit the sklearn/xgboost pipeline, export ONNX, serve.
+# It deliberately excludes the full-repo dev/CI set in requirements.txt:
+#   - evidently  -> offline drift-detection job (src/predictops/drift.py); not
+#                   imported by train.py or app.py, so it never runs in the image
+#   - pytest, ruff -> test/lint tooling, run in CI, never inside a shipped image
+scikit-learn==1.5.2
+xgboost==2.1.1
+pandas==2.2.3
+numpy==1.26.4
+joblib==1.4.2
+mlflow==2.16.2
+fastapi==0.115.0
+uvicorn==0.31.0
+pydantic==2.9.2
+skl2onnx==1.20.0
+onnx==1.22.0
+onnxmltools==1.16.0
+onnxruntime==1.27.0

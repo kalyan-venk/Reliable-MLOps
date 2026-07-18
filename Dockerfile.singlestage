@@ -1,0 +1,30 @@
+# Single-stage baseline: train AND serve in ONE image, with no multi-stage
+# split to shed build-time deps at runtime. It installs the full training +
+# serving stack (scikit-learn, xgboost, pandas, mlflow, the skl2onnx/onnx
+# toolchain, onnxruntime + the FastAPI layer), trains the model in-image, and
+# serves it. Because there is no separate runtime stage, the whole scientific
+# stack ships in the final image — this is the size baseline the multi-stage
+# Dockerfile is measured against.
+#
+# Measured: ~1.17 GB (linux/arm64). The multi-stage Dockerfile trains in a
+# builder, exports ONNX, and serves with onnxruntime alone -> 343 MB.
+#
+# Standard image hygiene only (drop bundled test suites + __pycache__); no
+# binutils .so strip, so the number is reproducible on a plain slim base.
+FROM python:3.12-slim
+WORKDIR /app
+
+COPY requirements-train.txt .
+RUN pip install --no-cache-dir -r requirements-train.txt \
+ && SP=/usr/local/lib/python3.12/site-packages \
+ && find $SP -type d \( -name tests -o -name test \) -prune -exec rm -rf {} + 2>/dev/null || true \
+ && find $SP -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
+
+ENV PYTHONPATH=/app/src
+COPY src/ src/
+COPY data/ data/
+RUN python -m predictops.train
+
+EXPOSE 8000
+ENTRYPOINT ["uvicorn"]
+CMD ["predictops.app:app", "--host", "0.0.0.0", "--port", "8000"]
