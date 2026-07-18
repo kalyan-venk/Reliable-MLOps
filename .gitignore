@@ -222,3 +222,7 @@ mlruns/
 mlartifacts/
 models/
 reports/
+
+# Local Claude working docs — never publish to the public repo
+CLAUDE.md
+MISTAKES.md
